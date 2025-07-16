@@ -33,11 +33,13 @@ FONT_OPTIONS = {
 MAX_CHARS = 400
 FRAME_SKIP = 2
 OVERLAY_SCALE = 0.5
+LINE_SPACING = 10  # spacing between lines in pixels (before scaling)
 
 def generate_typewriter_clips(text, duration, size, font_path, font_size, text_color, outline_color, outline_thickness):
     width, height = size
     scaled_size = (int(width * OVERLAY_SCALE), int(height * OVERLAY_SCALE))
     scaled_font_size = int(font_size * OVERLAY_SCALE)
+    scaled_line_spacing = int(LINE_SPACING * OVERLAY_SCALE)
 
     try:
         font = ImageFont.truetype(font_path, scaled_font_size)
@@ -62,7 +64,7 @@ def generate_typewriter_clips(text, duration, size, font_path, font_size, text_c
         current_text = full_text[:i]
         lines = current_text.split("\n")
         total_text_height = sum([
-            font.getbbox(line)[3] if line.strip() else scaled_font_size // 2 for line in lines
+            font.getbbox(line)[3] - font.getbbox(line)[1] + scaled_line_spacing for line in lines if line.strip()
         ])
         y = (scaled_size[1] - total_text_height) // 2
 
@@ -81,7 +83,7 @@ def generate_typewriter_clips(text, duration, size, font_path, font_size, text_c
                     draw.text((x + dx, y + dy), line, font=font, fill=outline_color)
 
             draw.text((x, y), line, font=font, fill=text_color)
-            y += bbox[3] - bbox[1]
+            y += bbox[3] - bbox[1] + scaled_line_spacing
 
         img = img.resize(size, resample=PILImage.Resampling.LANCZOS)
         frame = np.array(img)
@@ -116,18 +118,15 @@ def overlay_text_on_video(input_path, output_path, text, animation_duration, fon
         raise RuntimeError(f"Video generation failed: {e}")
 
 # --- Streamlit UI ---
-st.title("📝 Typewriter Text on Video (Styled & Safe)")
+st.title("📝 Typewriter Text on Video (Styled, Spaced & Safe)")
 
 uploaded_file = st.file_uploader("Upload a video (.mp4)", type=["mp4"])
 text_input = st.text_area("Enter text for animation (max 400 characters)")
 duration = st.slider("Text animation duration (seconds)", 1, 20, 5)
 
 st.subheader("🖋️ Text Style Options")
-
-# Font selection
 selected_font_family = st.selectbox("Font Family", list(FONT_OPTIONS.keys()))
 selected_font_weight = st.radio("Font Style", ["Regular", "Bold", "Italic"], horizontal=True)
-
 font_path = FONT_OPTIONS[selected_font_family].get(selected_font_weight, "DejaVuSans.ttf")
 
 font_size = st.slider("Font Size", 20, 100, 48)
@@ -135,7 +134,9 @@ text_color = st.color_picker("Text Color", "#FFFFFF")
 outline_color = st.color_picker("Outline Color", "#000000")
 outline_thickness = st.slider("Outline Thickness", 0, 5, 2)
 
-if uploaded_file and text_input:
+generate_button = st.button("🎬 Generate Video")
+
+if generate_button and uploaded_file and text_input:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_input:
         temp_input.write(uploaded_file.read())
         temp_input.flush()
